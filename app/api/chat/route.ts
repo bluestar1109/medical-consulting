@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase';
 import { SYSTEM_PROMPT } from '@/lib/systemPrompt';
 import { ConsultationResponse } from '@/types';
 
@@ -102,26 +101,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ...FALLBACK, message: rawContent });
     }
 
-    // Supabase 저장 (실패해도 응답은 반환)
-    try {
-      const supabase = createClient();
-      await supabase.from('consultations').insert({
-        session_id: session_id || 'anonymous',
-        patient_message: message.trim(),
-        ai_response: analysis.message ?? '',
-        classification: analysis.classification ?? 'general',
-        symptoms: analysis.symptoms ?? [],
-        suspected_diseases: analysis.suspected_diseases ?? [],
-        recommended_department: analysis.recommended_department ?? '',
-        is_emergency: analysis.is_emergency ?? false,
-      });
-    } catch (dbErr) {
-      console.error('[chat] Supabase error:', String(dbErr).slice(0, 200));
-    }
+    // Supabase 저장 (비동기, 실패해도 응답 반환)
+    saveToSupabase({
+      session_id: session_id || 'anonymous',
+      patient_message: message.trim(),
+      ai_response: analysis.message ?? '',
+      classification: analysis.classification ?? 'general',
+      symptoms: analysis.symptoms ?? [],
+      suspected_diseases: analysis.suspected_diseases ?? [],
+      recommended_department: analysis.recommended_department ?? '',
+      is_emergency: analysis.is_emergency ?? false,
+    });
 
     return NextResponse.json(analysis);
   } catch (err) {
-    console.error('[chat] Unexpected error:', err);
+    const e = err as Error;
+    console.error('[chat] Unexpected error name:', e?.name);
+    console.error('[chat] Unexpected error msg:', e?.message);
+    console.error('[chat] Unexpected error stack:', e?.stack?.slice(0, 400));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+  }
+}
+
+async function saveToSupabase(record: {
+  session_id: string;
+  patient_message: string;
+  ai_response: string;
+  classification: string;
+  symptoms: string[];
+  suspected_diseases: string[];
+  recommended_department: string;
+  is_emergency: boolean;
+}) {
+  try {
+    const { createClient } = await import('@/lib/supabase');
+    const supabase = createClient();
+    await supabase.from('consultations').insert(record);
+  } catch (dbErr) {
+    console.error('[chat] Supabase error:', String(dbErr).slice(0, 200));
   }
 }
