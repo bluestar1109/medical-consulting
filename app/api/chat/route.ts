@@ -54,8 +54,9 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
+    const keyDebug = JSON.stringify(apiKey?.slice(0, 10));
+    console.error('[chat] key preview (JSON):', keyDebug);
     if (!apiKey) {
-      console.error('[chat] OPENROUTER_API_KEY not set');
       return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
 
