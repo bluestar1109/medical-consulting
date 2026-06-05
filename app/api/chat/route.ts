@@ -116,10 +116,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(analysis);
   } catch (err) {
     const e = err as Error;
-    console.error('[chat] Unexpected error name:', e?.name);
-    console.error('[chat] Unexpected error msg:', e?.message);
-    console.error('[chat] Unexpected error stack:', e?.stack?.slice(0, 400));
-    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+    const detail = `${e?.name}: ${e?.message} | ${e?.stack?.slice(0, 200)}`;
+    console.error('[chat] FATAL:', detail);
+    return NextResponse.json({ error: detail }, { status: 500 });
   }
 }
 
