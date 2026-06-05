@@ -54,9 +54,8 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
-    const keyDebug = JSON.stringify(apiKey?.slice(0, 10));
-    console.error('[chat] key preview (JSON):', keyDebug);
     if (!apiKey) {
+      console.error('[chat] OPENROUTER_API_KEY not set');
       return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
 
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
         'HTTP-Referer': 'https://medical-consulting-jade.vercel.app',
-        'X-Title': '병원 환자 상담 봇',
+        'X-Title': 'Hospital Patient Consulting Bot',
       },
       body: JSON.stringify({
         model: 'anthropic/claude-3.5-haiku',
@@ -117,9 +116,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(analysis);
   } catch (err) {
     const e = err as Error;
-    const detail = `${e?.name}: ${e?.message} | ${e?.stack?.slice(0, 200)}`;
-    console.error('[chat] FATAL:', detail);
-    return NextResponse.json({ error: detail }, { status: 500 });
+    console.error('[chat] Unexpected error:', e?.name, e?.message);
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
 
