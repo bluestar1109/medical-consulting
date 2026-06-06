@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { SYSTEM_PROMPT } from '@/lib/systemPrompt';
 import { ConsultationResponse } from '@/types';
 
 function extractJson(text: string): ConsultationResponse | null {
-  // 직접 파싱 시도
   try {
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === 'object') return parsed as ConsultationResponse;
   } catch {}
 
-  // 마크다운 코드블록에서 JSON 추출
   const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlock) {
     try {
@@ -18,7 +16,6 @@ function extractJson(text: string): ConsultationResponse | null {
     } catch {}
   }
 
-  // 중괄호로 감싸진 JSON 추출
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     try {
@@ -55,23 +52,24 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
-      console.error('[chat] OPENROUTER_API_KEY not set');
       return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://medical-consulting-jade.vercel.app';
 
     const llmResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://medical-consulting-jade.vercel.app',
+        'HTTP-Referer': appUrl,
         'X-Title': 'Hospital Patient Consulting Bot',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
+        model: 'openrouter/auto',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          ...(Array.isArray(history) ? history : []),
+          ...(Array.isArray(history) ? history.slice(-8) : []),
           { role: 'user', content: message.trim() },
         ],
         temperature: 0.3,
@@ -89,19 +87,15 @@ export async function POST(request: NextRequest) {
     const rawContent: string = llmData?.choices?.[0]?.message?.content ?? '';
 
     if (!rawContent) {
-      console.error('[chat] Empty content from LLM:', JSON.stringify(llmData).slice(0, 300));
       return NextResponse.json({ error: 'AI 응답이 비어있습니다.' }, { status: 500 });
     }
 
     const analysis = extractJson(rawContent);
 
     if (!analysis) {
-      console.error('[chat] JSON parse failed. Raw:', rawContent.slice(0, 300));
-      // JSON 파싱 실패 시 raw 텍스트를 메시지로 반환 (폴백)
       return NextResponse.json({ ...FALLBACK, message: rawContent });
     }
 
-    // Supabase 저장 (비동기, 실패해도 응답 반환)
     saveToSupabase({
       session_id: session_id || 'anonymous',
       patient_message: message.trim(),
@@ -134,8 +128,9 @@ async function saveToSupabase(record: {
   try {
     const { createClient } = await import('@/lib/supabase');
     const supabase = createClient();
-    await supabase.from('consultations').insert(record);
+    const { error } = await supabase.from('consultations').insert(record);
+    if (error) console.error('[supabase] insert error:', error.message);
   } catch (dbErr) {
-    console.error('[chat] Supabase error:', String(dbErr).slice(0, 200));
+    console.error('[supabase] client error:', String(dbErr).slice(0, 200));
   }
 }
